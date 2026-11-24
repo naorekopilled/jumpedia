@@ -1,7 +1,7 @@
 """Expected business errors that should be handled gracefully."""
 
 import typing as t
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from jumpedia.domain.entities.attribute import AttributeEntity
 
@@ -77,7 +77,8 @@ type AnyBusinessErrorT = (
 # --- Base --- #
 @dataclass()
 class BusinessError(Exception):
-    pass
+    # Number and text of the line of a file the error happened in.
+    file_line: tuple[int, str] | None = field(default=None, kw_only=True)
 
 
 # --- Invalid String --- #

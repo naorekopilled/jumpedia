@@ -2,7 +2,6 @@ import asyncio
 import enum
 import itertools
 import logging
-import sys
 import typing as t
 from string.templatelib import Template
 
@@ -11,7 +10,7 @@ import discord
 from jumpedia.domain.errors.business import ApiUnreachable
 from jumpedia.domain.value_objects.string import Str
 from jumpedia.infrastructure import paste
-from jumpedia.interfaces.message import layout, views
+from jumpedia.interfaces.message import formatting, layout, views
 from jumpedia.interfaces.message.formattable import FormattableT
 from jumpedia.interfaces.message.formatting import F, mentionable_to_formattable
 from jumpedia.interfaces.message.layout import Status
@@ -32,15 +31,19 @@ async def error(
     documentation: t.Sequence[str] = (),
     warning: bool = False,
     send_kwargs: SendKwargsT = {},
+    file_line: tuple[int, str] | None = None,
 ) -> None:
-    # Notes added to the error being handled, like the line of a file it happened in.
-    notes: t.Sequence[str] = getattr(sys.exception(), "__notes__", ())
+    file_line_text: str = ""
+
+    if file_line is not None:
+        number, line = file_line
+        file_line_text = f"\n\nThe command {formatting.embed(formatting.shorten(line))} in line {number} of the file failed, so no command of the file was executed!"
 
     header = header + (t"" if warning else t" Error")
     body = Template(
         *body,
         "".join(f"\n- {doc}" for doc in documentation),
-        "".join(f"\n\n{note}" for note in notes),
+        file_line_text,
     )
     status = Status.WARNING if warning else Status.ERROR
 

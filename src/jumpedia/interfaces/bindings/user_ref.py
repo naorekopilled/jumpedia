@@ -1,14 +1,10 @@
 import typing as t
 
 import discord
-from discord.ext import commands
 
-from jumpedia.domain.enums.concept import Concept
-from jumpedia.domain.errors.business import NotFoundByName
 from jumpedia.domain.sentinels.default import DEFAULT
 from jumpedia.domain.typing.common import ID
 from jumpedia.domain.typing.user import UserID
-from jumpedia.domain.value_objects.string import Str
 from jumpedia.domain.value_objects.user import UserNameStr
 from jumpedia.services.dtos.user import UserRef
 
@@ -31,19 +27,9 @@ def user_ref(user: discord.User | None) -> UserRef | DEFAULT:
     )
 
 
-async def user_from_mention(bot: commands.Bot, mention: str) -> discord.User:
-    """Get the user of a mention like `<@123>` or of a plain Discord ID."""
+def user_id_from_mention(mention: str) -> UserID | None:
+    """Get the Discord ID of a mention like `<@123>` or of a plain Discord ID."""
 
     user_id = mention.strip("<@!>")
 
-    if not user_id.isdecimal():
-        raise NotFoundByName(Concept.USER, Str(mention))
-
-    try:
-        return bot.get_user(int(user_id)) or await bot.fetch_user(int(user_id))
-    except discord.HTTPException as e:
-        # Discord answers an unknown ID with 404 and one that is too big with 400.
-        if e.status not in (400, 404):
-            raise
-
-        raise NotFoundByName(Concept.USER, Str(mention))
+    return UserID(ID(int(user_id))) if user_id.isdecimal() else None

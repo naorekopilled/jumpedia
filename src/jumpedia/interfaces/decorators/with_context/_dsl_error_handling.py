@@ -68,6 +68,7 @@ async def handle_lex_error(interaction: discord.Interaction, e: AnyLexErrorT) ->
                 t"Invalid Escape Character",
                 _highlight_error(e.s, e.span)
                 + t"The escaped character {F.string(e.substring[-1])} is not escapable!",
+                file_line=e.file_line,
             )
 
         case MultilineStringsDisallowed():
@@ -76,6 +77,7 @@ async def handle_lex_error(interaction: discord.Interaction, e: AnyLexErrorT) ->
                 t"Multiline Strings Disallowed",
                 _highlight_error(e.s, e.span)
                 + t"Multiline strings are not allowed for this DSL!",
+                file_line=e.file_line,
             )
 
         case UnterminatedString():
@@ -88,6 +90,7 @@ async def handle_lex_error(interaction: discord.Interaction, e: AnyLexErrorT) ->
                     if e.unterminated_escape
                     else t"The string was not closed!"
                 ),
+                file_line=e.file_line,
             )
 
         case UnknownChar():
@@ -97,6 +100,7 @@ async def handle_lex_error(interaction: discord.Interaction, e: AnyLexErrorT) ->
                 _highlight_error(e.s, e.span)
                 + t"The character {F.string(e.substring)} is generally invalid!\n"
                 + t"Maybe try wrapping the expression in 'single quotes' or \"double quotes\"?",
+                file_line=e.file_line,
             )
 
         case _:
@@ -120,6 +124,7 @@ async def handle_parse_error(
                     )
                 )
                 + t"\n... but received the {F.full_mention(e.received.type)}!",
+                file_line=e.file_line,
             )
 
         case DepthLimitSurpassed():
@@ -128,6 +133,7 @@ async def handle_parse_error(
                 t"Maximum Nesting Depth Exceeded",
                 _highlight_error(e.s, e.at.span)
                 + t"The maximum nesting depth of {F.string(str(e.max_depth))} was surpassed!",
+                file_line=e.file_line,
             )
 
         case _:
@@ -151,6 +157,7 @@ async def handle_eval_error(interaction: discord.Interaction, e: AnyEvalErrorT) 
                     )
                 )
                 + t"\n... but received {F.string(type(e.received).__name__)}!",
+                file_line=e.file_line,
             )
 
         case UnexpectedBinOp():
@@ -163,6 +170,7 @@ async def handle_eval_error(interaction: discord.Interaction, e: AnyEvalErrorT) 
                     "".join(f"\n- {formatting.embed(op.name)}" for op in e.expected)
                 )
                 + t"\n... but received {F.string(e.received.type.name)}!",
+                file_line=e.file_line,
             )
 
         case EmptyAfterNonEqualityOperator():
@@ -171,6 +179,7 @@ async def handle_eval_error(interaction: discord.Interaction, e: AnyEvalErrorT) 
                 t"Missing Expression",
                 _highlight_error(e.s, e.received.span)
                 + t"The binary operator {F.string(e.received.type.name)} requires an expression after it!",
+                file_line=e.file_line,
             )
 
         case _:

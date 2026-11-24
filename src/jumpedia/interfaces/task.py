@@ -15,6 +15,7 @@ from jumpedia.domain.errors.business import (
     CommandOptionNotMentioned,
     NoCommandsInFile,
     NotABulkCommand,
+    NotFoundByName,
     TextBeforeFirstCommandOption,
     UnknownCommandOptionChoice,
 )
@@ -24,6 +25,7 @@ from jumpedia.domain.typing.common import ID
 from jumpedia.domain.typing.user import UserID
 from jumpedia.domain.value_objects.field_slot import FieldSlotStr
 from jumpedia.domain.value_objects.list import ListNameStr
+from jumpedia.domain.value_objects.string import Str
 from jumpedia.domain.value_objects.user import UserNameStr
 from jumpedia.interfaces import bindings
 from jumpedia.interfaces.base import BaseInterface
@@ -38,6 +40,7 @@ from jumpedia.interfaces.enums.edit_mode import (
 )
 from jumpedia.interfaces.message import formatting, messages
 from jumpedia.interfaces.message.formatting import F
+from jumpedia.services.dtos.user import UserRef
 
 # Commands that ask for a confirmation or only show data are left out.
 _BULK_COMMANDS: t.Final[tuple[str, ...]] = (
@@ -55,7 +58,7 @@ _BULK_COMMANDS: t.Final[tuple[str, ...]] = (
 class _BulkCommand:
     name: str
     options: frozendict[str, str]
-    user: discord.User | None
+    user: UserRef | DEFAULT
 
 
 def _execute_bulk_command(ctx: CommandContext, command: _BulkCommand) -> None:
@@ -103,14 +106,14 @@ def _execute_bulk_command(ctx: CommandContext, command: _BulkCommand) -> None:
                 FieldSlotStr(options["task_name_or_alias"]),
                 DEFAULT if list_name is None else ListNameStr(list_name),
                 bindings.mapping.field_mapping(options.get("user_field_mapping_dsl")),
-                user_ref.user_ref(command.user),
+                command.user,
             )
 
         case "task take":
             ctx.services.member_task.take_from_user(
                 FieldSlotStr(options["task_name_or_alias"]),
                 DEFAULT if list_name is None else ListNameStr(list_name),
-                user_ref.user_ref(command.user),
+                command.user,
             )
 
         case "task edit given":
@@ -119,7 +122,7 @@ def _execute_bulk_command(ctx: CommandContext, command: _BulkCommand) -> None:
                 FieldMappingEditMode(
                     FieldMappingEditModeInterfaceEnum[options["edit_mode"]].value
                 ),
-                user_ref.user_ref(command.user),
+                command.user,
                 FieldSlotStr(options["task_name_or_alias"]),
                 DEFAULT if list_name is None else ListNameStr(list_name),
             )
@@ -508,27 +511,43 @@ class TasksInterface(
         line: str = ""
 
         try:
-            # All users are fetched before the first command is executed, so no row
-            # stays locked while waiting for Discord.
-            mention_to_user: dict[str, discord.User] = {}
-            commands: list[_BulkCommand] = []
+            parsed_lines: list[tuple[str, frozendict[str, str]]] = []
+            mention_to_user_id: dict[str, UserID | None] = {}
 
             for number, line in lines:
                 name, options = self._parse_bulk_line(line)
                 mention = options.get("user")
-                
-                if mention is not None and mention not in mention_to_user:
-                    mention_to_user[mention] = await user_ref.user_from_mention(
-                        self.bot, mention
-                    )
 
-                commands.append(
-                    _BulkCommand(
-                        name,
-                        options,
-                        None if mention is None else mention_to_user[mention],
-                    )
+                if mention is not None:
+                    mention_to_user_id[mention] = user_ref.user_id_from_mention(mention)
+
+                parsed_lines.append((name, options))
+
+            # All users are fetched at once. Discord is never asked, so only users
+            # Jumpedia has saved are found.
+            id_to_user: dict[UserID, UserRef] = {
+                user.user_id: UserRef(user.user_id, user.name)
+                for user in ctx.services.user.get_by_ids(
+                    {i for i in mention_to_user_id.values() if i is not None}
                 )
+            }
+            commands: list[_BulkCommand] = []
+
+            for (number, line), (name, options) in zip(
+                lines, parsed_lines, strict=True
+            ):
+                mention = options.get("user")
+                user: UserRef | DEFAULT = DEFAULT
+
+                if mention is not None:
+                    user_id = mention_to_user_id[mention]
+
+                    if user_id is None or user_id not in id_to_user:
+                        raise NotFoundByName(Concept.USER, Str(mention))
+
+                    user = id_to_user[user_id]
+
+                commands.append(_BulkCommand(name, options, user))
 
             command_counts: dict[str, int] = {}
 
@@ -543,9 +562,7 @@ class TasksInterface(
 
         except (BusinessError, DslError) as e:
             # Shown below the reason in the error message.
-            e.add_note(
-                f"The command {formatting.embed(formatting.shorten(line))} in line {number} of the file failed, so no command of the file was executed!"
-            )
+            e.file_line = (number, line)
             raise
 
         await messages.success(

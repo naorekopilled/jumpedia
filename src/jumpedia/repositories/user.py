@@ -1,3 +1,7 @@
+import typing as t
+
+from sqlalchemy import select
+
 from jumpedia.db.models import UserModel
 from jumpedia.domain.entities.user import UserEntity
 from jumpedia.domain.enums.rank import MetaRank
@@ -23,6 +27,10 @@ class UserRepository(BaseRepository):
     def get_by_id(self, user_id: UserID) -> UserEntity | None:
         obj = self._session.get(UserModel, user_id)
         return None if obj is None else user_model_to_entity(obj)
+
+    def get_by_ids(self, user_ids: t.Collection[UserID]) -> tuple[UserEntity, ...]:
+        stmt = select(UserModel).where(UserModel.user_id.in_(user_ids))
+        return tuple(user_model_to_entity(o) for o in self._session.scalars(stmt))
 
     def create(self, user: UserInsert) -> UserEntity:
         obj = UserModel(

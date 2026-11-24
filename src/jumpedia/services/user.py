@@ -1,8 +1,10 @@
+import typing as t
 from dataclasses import dataclass
 
 from jumpedia.domain.entities.user import UserEntity
 from jumpedia.domain.enums.rank import MetaRank
 from jumpedia.domain.sentinels.default import DEFAULT
+from jumpedia.domain.typing.user import UserID
 from jumpedia.repositories.dtos.user import UserInsert
 
 lazy from jumpedia.repositories.user import UserRepository
@@ -33,6 +35,9 @@ class UserService:
         )
 
         return MetaRankEdited(target_user, updated_user)
+
+    def get_by_ids(self, user_ids: t.Collection[UserID]) -> tuple[UserEntity, ...]:
+        return self._user_repository.get_by_ids(user_ids)
 
 
 @dataclass(frozen=True, slots=True, eq=False)
