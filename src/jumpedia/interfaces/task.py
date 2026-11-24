@@ -452,11 +452,14 @@ class TasksInterface(
 
             # Same format Discord accepts when a command is pasted into the chat:
             # an option starts at its name followed by a colon.
+            # Parameter names ARE trusted input!
+            # One character lookbehind is efficient and not catastrophic in Python's
+            # regex engine!
             before, *names_and_values = re.split(
                 rf"(?:^|(?<=\s))({'|'.join(param.name for param in cmd.parameters)}):",
                 line.removeprefix(f"/{name}"),
             )
-
+            
             if before.strip():
                 raise TextBeforeFirstCommandOption(before.strip())
 
@@ -513,7 +516,7 @@ class TasksInterface(
             for number, line in lines:
                 name, options = self._parse_bulk_line(line)
                 mention = options.get("user")
-
+                
                 if mention is not None and mention not in mention_to_user:
                     mention_to_user[mention] = await user_ref.user_from_mention(
                         self.bot, mention
